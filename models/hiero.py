@@ -275,7 +275,7 @@ class HiERO(torch.nn.Module):
         for i, (res, stage) in enumerate(zip(graphs[::-1], self.down_stages)):
 
             # Interpolate features back to original temporal resolution
-            feat = res.x + knn_interpolate(feat, pos[:, None], res.pos[:, None], batch, res.video, k=2)
+            feat = res.x + knn_interpolate(feat, pos, res.pos, batch, res.video, k=2)
             edge_index, pos, batch = res.edge_index, res.pos, res.video
             indices = getattr(res, 'indices', torch.arange(len(res.x), device=res.x.device))
 
