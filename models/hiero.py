@@ -275,6 +275,14 @@ class HiERO(torch.nn.Module):
         for i, (res, stage) in enumerate(zip(graphs[::-1], self.down_stages)):
 
             # Interpolate features back to original temporal resolution
+            if torch.isnan(pos).any() or torch.isnan(res.pos).any():
+                print("NaN in pos")
+
+            print("pos:", pos.shape, pos.dtype, pos.is_contiguous())
+            print("res.pos:", res.pos.shape, res.pos.dtype, res.pos.is_contiguous())
+            print("batch:", batch.shape, batch.dtype)
+            print("res.video:", res.video.shape, res.video.dtype)
+            
             feat = res.x + knn_interpolate(feat, pos, res.pos, batch, res.video, k=2)
             edge_index, pos, batch = res.edge_index, res.pos, res.video
             indices = getattr(res, 'indices', torch.arange(len(res.x), device=res.x.device))
