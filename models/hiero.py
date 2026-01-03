@@ -208,6 +208,17 @@ class HiERO(torch.nn.Module):
         # Decoder step
         graphs: List[Data] = self.decoder(last_graph, graphs)
 
+        # --- FIX: make sure every graph.x is 2D for PyG batching ---
+        for g in graphs:
+            if hasattr(g, "x") and isinstance(g.x, torch.Tensor) and g.x.dim() == 3:
+                # (K,N,C) or (N,K,C) -> (N,C)
+                if g.x.size(0) == g.pos.size(0):          # (N,K,C)
+                    g.x = g.x.mean(dim=1)
+                elif g.x.size(1) == g.pos.size(0):        # (K,N,C)
+                    g.x = g.x.mean(dim=0)
+                else:
+                    g.x = g.x.view(g.pos.size(0), -1)
+
         # For the moment we consider only the graph with highest resolution
         return Batch.from_data_list(graphs, follow_batch=["video"])
 
