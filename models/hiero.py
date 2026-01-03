@@ -275,15 +275,39 @@ class HiERO(torch.nn.Module):
         for i, (res, stage) in enumerate(zip(graphs[::-1], self.down_stages)):
 
             # Interpolate features back to original temporal resolution
-            if torch.isnan(pos).any() or torch.isnan(res.pos).any():
-                print("NaN in pos")
+            # --- Ensure feat is 2D for knn_interpolate: (N, C) ---
+            x_in = feat
+            if isinstance(x_in, torch.Tensor) and x_in.dim() == 3:
+                # 常见情况： (K, N, C) 或 (N, K, C)
+                # 统一压成 (N, C)
+                if x_in.size(0) == pos.size(0):         # (N, K, C)
+                    x_in = x_in.mean(dim=1)
+                elif x_in.size(1) == pos.size(0):       # (K, N, C)
+                    x_in = x_in.mean(dim=0)
+                else:
+                    # 实在对不上，就直接 flatten 到 (N, -1) 再线性投影也行，但先用 mean 尝试
+                    x_in = x_in.view(pos.size(0), -1)
 
-            print("pos:", pos.shape, pos.dtype, pos.is_contiguous())
-            print("res.pos:", res.pos.shape, res.pos.dtype, res.pos.is_contiguous())
-            print("batch:", batch.shape, batch.dtype)
-            print("res.video:", res.video.shape, res.video.dtype)
-            
-            feat = res.x + knn_interpolate(feat, pos, res.pos, batch, res.video, k=2)
+            # 同样确保 res.x 是 2D
+            res_x = res.x
+            if isinstance(res_x, torch.Tensor) and res_x.dim() == 3:
+                if res_x.size(0) == res.pos.size(0):
+                    res_x = res_x.mean(dim=1)
+                elif res_x.size(1) == res.pos.size(0):
+                    res_x = res_x.mean(dim=0)
+                else:
+                    res_x = res_x.view(res.pos.size(0), -1)
+
+            # pos/res.pos 保证是 2D float contiguous（你之前已经做过也可以保留）
+            pos_x = pos
+            pos_y = res.pos
+            if pos_x.dim() == 1: pos_x = pos_x.unsqueeze(1)
+            if pos_y.dim() == 1: pos_y = pos_y.unsqueeze(1)
+            pos_x = pos_x.float().contiguous()
+            pos_y = pos_y.float().contiguous()
+
+            # 插值 + residual
+            feat = res_x + knn_interpolate(x_in, pos_x, pos_y, batch, res.video, k=2)
             edge_index, pos, batch = res.edge_index, res.pos, res.video
             indices = getattr(res, 'indices', torch.arange(len(res.x), device=res.x.device))
 
