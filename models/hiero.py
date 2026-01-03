@@ -190,8 +190,10 @@ class HiERO(torch.nn.Module):
         """
 
         # Keep only valid nodes
-        x, batch, pos, indices = data.x, data.batch, data.pos, data.indices
-        x, batch, pos, indices = x[data.mask], batch[data.mask], pos[data.mask], indices[data.mask]  # type: ignore
+        x, batch, pos = data.x, data.batch, data.pos
+        indices = getattr(data, 'indices', torch.arange(len(data.x), device=data.x.device))
+        mask = getattr(data, 'mask', torch.ones(len(data.x), dtype=torch.bool, device=data.x.device))
+        x, batch, pos, indices = x[mask], batch[mask], pos[mask], indices[mask]
 
         # Compute the initial adjacency matrix of the graph
         edge_index = gnn.radius_graph(pos, self.k, batch, False)
@@ -227,7 +229,8 @@ class HiERO(torch.nn.Module):
         """
         graphs = []
 
-        feat, edge_index, pos, batch, indices = input_graph.x, input_graph.edge_index, input_graph.pos, input_graph.batch, input_graph.indices
+        feat, edge_index, pos, batch = input_graph.x, input_graph.edge_index, input_graph.pos, input_graph.batch
+        indices = getattr(input_graph, 'indices', torch.arange(len(input_graph.x), device=input_graph.x.device))
 
         graphs = [Data(x=feat, edge_index=edge_index, pos=pos, video=batch, depth=torch.zeros_like(pos, dtype=torch.long), indices=indices)]
 
@@ -273,7 +276,8 @@ class HiERO(torch.nn.Module):
 
             # Interpolate features back to original temporal resolution
             feat = res.x + knn_interpolate(feat, pos[:, None], res.pos[:, None], batch, res.video, k=2)
-            edge_index, pos, batch, indices = res.edge_index, res.pos, res.video, res.indices
+            edge_index, pos, batch = res.edge_index, res.pos, res.video
+            indices = getattr(res, 'indices', torch.arange(len(res.x), device=res.x.device))
 
             depth = self.depth - i - 1  # from max_depth -> 0
 
